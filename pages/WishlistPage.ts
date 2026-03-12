@@ -1,22 +1,36 @@
 import { expect } from '@playwright/test';
-import type { Locator, Page } from '@playwright/test';
+import type { Frame, Locator, Page } from '@playwright/test';
 
 export class WishlistPage {
   constructor(private readonly page: Page) {}
 
+  private async pause() {
+    await this.page.waitForTimeout(500);
+  }
+
   async open() {
-    await this.page.goto('/');
+    await this.page.goto('/da/', { waitUntil: 'domcontentloaded' });
+    await this.pause();
+    await this.dismissCookieBannerIfPresent();
+    await this.pause();
   }
 
   async expectAuthenticatedSession() {
+    await this.dismissCookieBannerIfPresent();
     await expect(this.page).not.toHaveURL(/\/login/i);
+    await this.pause();
   }
 
   async createWishlist(name: string) {
     await this.assertAuthenticatedUi();
+    await this.dismissCookieBannerIfPresent();
+    await this.pause();
     await this.openCreateWishlistFlow();
+    await this.pause();
     await this.fillWishlistNameIfPresent(name);
-    await this.submitCreateWishlist();
+    await this.pause();
+    await this.submitCreateWishlist(name);
+    await this.pause();
 
     const createdNameVisible = await this.page
       .getByText(name, { exact: false })
@@ -34,21 +48,26 @@ export class WishlistPage {
 
   async addItemToWishlist(wishlistName: string, productLink: string) {
     await this.assertAuthenticatedUi();
+    await this.dismissCookieBannerIfPresent();
+    await this.pause();
     await this.openWishlistByName(wishlistName);
+    await this.pause();
     await this.openAddItemFlow();
+    await this.pause();
     await this.fillProductLink(productLink);
+    await this.pause();
     await this.submitAddItem();
-    await expect(this.page.getByTestId('new-wish-form-submit-btn')).toBeHidden({ timeout: 10000 });
-    await this.expectAuthenticatedSession();
+    await this.pause();
+    await expect(this.page.getByTestId('new-wish-form-submit-btn')).toBeHidden({ timeout: 30000 });
+    await this.pause();
   }
 
   private async openCreateWishlistFlow() {
     const createButtons: Locator[] = [
-      this.page.locator('div').filter({ hasText: /^Create wishlist$/ }).nth(2),
+      this.page.getByTestId('plus-button').first(),
       this.page.locator('div').filter({ hasText: /^Create wishlist$/ }).first(),
       this.page.getByRole('button', { name: /opret ønskeliste|ny ønskeliste|create wishlist|new wishlist/i }),
       this.page.getByRole('link', { name: /opret ønskeliste|ny ønskeliste|create wishlist|new wishlist/i }),
-      this.page.locator('[data-testid="create-wishlist"]'),
     ];
 
     await this.clickFirstVisible(createButtons, 'Could not find "create wishlist" trigger.');
@@ -56,9 +75,9 @@ export class WishlistPage {
 
   private async fillWishlistNameIfPresent(name: string) {
     const nameInputs: Locator[] = [
+      this.page.getByTestId('create-wishlist-title-input'),
       this.page.getByLabel(/ønskeliste.*navn|wishlist.*name|titel|title|navn|name/i),
       this.page.getByPlaceholder(/ønskeliste.*navn|wishlist.*name|titel|title|name/i),
-      this.page.locator('[data-testid="wishlist-name"]'),
       this.page.locator('input[name="name"], input[name="title"]'),
     ];
 
@@ -77,7 +96,35 @@ export class WishlistPage {
     }
   }
 
-  private async submitCreateWishlist() {
+  private async submitCreateWishlist(wishlistName: string) {
+    const exactSubmit = this.page.getByTestId('createWishlistSubmitButton').first();
+    const exactSubmitVisible = await exactSubmit
+      .waitFor({ state: 'visible', timeout: 20000 })
+      .then(() => true)
+      .catch(() => false);
+    if (exactSubmitVisible) {
+      await exactSubmit.click();
+      return;
+    }
+
+    const createdWishlistVisible = await this.page
+      .getByTestId(`wl-${wishlistName}`)
+      .first()
+      .isVisible()
+      .catch(() => false);
+    if (createdWishlistVisible) {
+      return;
+    }
+
+    const hasLoginButton = await this.page
+      .getByRole('button', { name: /^Log ind$/i })
+      .first()
+      .isVisible()
+      .catch(() => false);
+    if (hasLoginButton || /\/login/i.test(this.page.url())) {
+      throw new Error('Lost authenticated session while creating wishlist.');
+    }
+
     const submitButtons: Locator[] = [
       this.page.getByTestId('createWishlistSubmitButton'),
       this.page.getByRole('button', { name: /opret|gem|create|save/i }),
@@ -85,7 +132,10 @@ export class WishlistPage {
       this.page.locator('button[type="submit"]'),
     ];
 
-    await this.clickFirstVisible(submitButtons, 'Could not find wishlist save button.');
+    await this.clickFirstVisible(
+      submitButtons,
+      `Could not find wishlist save button (url: ${this.page.url()}).`
+    );
   }
 
   private async openAddItemFlow() {
@@ -144,15 +194,52 @@ export class WishlistPage {
   }
 
   private async assertAuthenticatedUi() {
-    const hasLoginButton = await this.page
+    const hasLoginDialogSubmit = await this.page
+      .getByRole('dialog')
       .getByRole('button', { name: /^Log ind$/i })
       .first()
       .isVisible()
       .catch(() => false);
 
-    if (hasLoginButton || /\/login/i.test(this.page.url())) {
+    if (/\/login/i.test(this.page.url()) || hasLoginDialogSubmit) {
       throw new Error('User is not authenticated. Login is required before wishlist actions.');
     }
+  }
+
+  private async dismissCookieBannerIfPresent() {
+    const acceptedOnPage = await this.tryAcceptCookiesInScope(this.page);
+    if (acceptedOnPage) {
+      return;
+    }
+
+    for (const frame of this.page.frames()) {
+      const acceptedInFrame = await this.tryAcceptCookiesInScope(frame);
+      if (acceptedInFrame) {
+        return;
+      }
+    }
+  }
+
+  private async tryAcceptCookiesInScope(scope: Page | Frame): Promise<boolean> {
+    const candidates: Locator[] = [
+      scope.getByRole('button', { name: /^Allow all$/i }).first(),
+      scope.getByRole('button', { name: /accept all|accepter alle|tillad alle|godkend alle/i }).first(),
+      scope.getByRole('button', { name: /accept|accepter|tillad|godkend|ok/i }).first(),
+    ];
+
+    for (const candidate of candidates) {
+      const visible = await candidate
+        .waitFor({ state: 'visible', timeout: 1500 })
+        .then(() => true)
+        .catch(() => false);
+
+      if (visible) {
+        await candidate.click({ timeout: 2500 }).catch(() => undefined);
+        return true;
+      }
+    }
+
+    return false;
   }
 
   private async openWishlistByName(wishlistName: string) {

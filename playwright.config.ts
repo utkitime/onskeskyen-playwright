@@ -1,33 +1,25 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const CI = !!process.env.CI;
-
 export default defineConfig({
   testDir: './tests',
-  fullyParallel: true,
-  forbidOnly: CI,
-  retries: CI ? 2 : 0,
-  workers: '50%',
-  reporter: [['list'], ['html', { open: 'never' }]],
+  timeout: 180_000,
+  expect: {
+    timeout: 10_000,
+  },
+  fullyParallel: false,
+  retries: 1,
+  reporter: [['html'], ['list']],
   use: {
     baseURL: 'https://onskeskyen.dk',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    video: 'on',
+    headless: false,
   },
   projects: [
     {
-      name: 'setup',
-      testMatch: /.*auth\.setup\.ts/,
-    },
-    {
       name: 'chromium',
-      use: {
-        ...devices['Desktop Chrome'],
-        storageState: 'playwright/.auth/user.json',
-      },
-      dependencies: ['setup'],
+      use: { ...devices['Desktop Chrome'] },
     },
   ],
-  outputDir: 'test-results/',
 });

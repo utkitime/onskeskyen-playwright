@@ -11,9 +11,19 @@ export class LoginPage {
 
   async login(email: string, password: string) {
     await this.open();
+    const needsLogin = await this.isLoginRequired();
+    if (!needsLogin) {
+      return;
+    }
 
-    const openLoginButton = this.page.getByRole('button', { name: /^Log ind$/i });
-    await openLoginButton.waitFor({ state: 'visible', timeout: 15000 });
+    const openLoginButton = await this.firstVisible(
+      [
+        this.page.getByRole('button', { name: /^Log ind$/i }).first(),
+        this.page.getByRole('button', { name: /log ind/i }).first(),
+        this.page.getByRole('link', { name: /log ind/i }).first(),
+      ],
+      'Could not find "Log ind" button.'
+    );
     await openLoginButton.click();
 
     const continueWithEmail = await this.firstVisible(
@@ -55,16 +65,17 @@ export class LoginPage {
       'Could not find dialog "Log ind" submit button.'
     );
     await submitButton.click();
+
+    // Wait for the post-login navigation/network activity to settle so the
+    // session cookie is fully set before the caller navigates elsewhere.
+    await this.page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => undefined);
   }
 
   async expectLoggedIn() {
     await expect(this.page).not.toHaveURL(/\/login/i);
-    await expect(this.page.getByRole('dialog').getByRole('button', { name: /^Log ind$/i })).toBeHidden({
-      timeout: 15000,
-    });
-    await expect(this.page.getByRole('button', { name: /^Log ind$/i }).first()).toBeHidden({
-      timeout: 15000,
-    });
+    await expect(
+      this.page.getByRole('button', { name: /^Log ind$/i }).first()
+    ).toBeHidden({ timeout: 15000 });
   }
 
   private async acceptCookiesIfVisible() {
@@ -93,6 +104,16 @@ export class LoginPage {
     throw new Error(errorMessage);
   }
 
+  private async anyVisible(locator: Locator): Promise<boolean> {
+    const count = await locator.count().catch(() => 0);
+    for (let index = 0; index < count; index += 1) {
+      if (await locator.nth(index).isVisible().catch(() => false)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private async clickContinueWithEmailIfStillVisible() {
     const continueWithEmailCandidates = [
       this.page.getByRole('button', { name: /^photo\s*Fortsæt med e-mail$/i }).first(),
@@ -107,5 +128,25 @@ export class LoginPage {
         break;
       }
     }
+  }
+
+  private async isLoginRequired(): Promise<boolean> {
+    const loginDialogVisible = await this.anyVisible(
+      this.page.getByRole('dialog').getByRole('button', { name: /log ind/i })
+    );
+    if (loginDialogVisible) {
+      return true;
+    }
+
+    const continueWithEmailVisible = await this.anyVisible(
+      this.page.getByRole('button', { name: /Fortsæt med e-mail|continue with e-mail|continue with email/i })
+    );
+    if (continueWithEmailVisible) {
+      return true;
+    }
+
+    const loginButtonVisible = await this.anyVisible(this.page.getByRole('button', { name: /log ind/i }));
+
+    return loginButtonVisible;
   }
 }

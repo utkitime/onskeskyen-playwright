@@ -2,21 +2,32 @@ import type { Page } from '@playwright/test';
 import { LoginPage } from '../../pages/LoginPage.js';
 import { requiredEnv } from './env.js';
 
+async function anyVisibleLoginButton(page: Page): Promise<boolean> {
+  const locator = page.getByRole('button', { name: /log ind/i });
+  const count = await locator.count().catch(() => 0);
+
+  for (let index = 0; index < count; index += 1) {
+    if (await locator.nth(index).isVisible().catch(() => false)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export async function ensureAuthenticated(page: Page) {
-  await page.goto('/da/', { waitUntil: 'domcontentloaded' });
+  const loginPage = new LoginPage(page);
+  const email = requiredEnv('ONSKESKYEN_EMAIL');
+  const password = requiredEnv('ONSKESKYEN_PASSWORD');
 
-  const onLoginUrl = /\/login/i.test(page.url());
-  const hasLoginButton = await page
-    .getByRole('button', { name: /^Log ind$/i })
-    .first()
-    .isVisible()
-    .catch(() => false);
+  await loginPage.login(email, password);
 
-  if (!onLoginUrl && !hasLoginButton) {
+  // After login the site redirects (e.g. to /overview). Check auth on whatever
+  // page we landed on — no extra navigation needed.
+  const hasHeaderLoginButton = await anyVisibleLoginButton(page);
+  if (!hasHeaderLoginButton && !/\/login/i.test(page.url())) {
     return;
   }
 
-  const loginPage = new LoginPage(page);
-  await loginPage.login(requiredEnv('ONSKESKYEN_EMAIL'), requiredEnv('ONSKESKYEN_PASSWORD'));
-  await loginPage.expectLoggedIn();
+  throw new Error('Authentication failed: "Log ind" button is still visible after login.');
 }

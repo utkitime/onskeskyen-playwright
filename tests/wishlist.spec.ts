@@ -5,7 +5,7 @@ function uniqueName(prefix: string): string {
 }
 
 test.describe('Ønskeskyen wishlist critical flows', () => {
-  test.describe.configure({ mode: 'parallel' });
+  test.describe.configure({ mode: 'serial' });
 
   test('authenticated user can access wishlist area', async ({ authenticatedPage, wishlistPage }) => {
     await wishlistPage.open();
