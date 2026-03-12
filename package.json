@@ -1,0 +1,25 @@
+{
+  "name": "onskeskyen-playwright",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:wishlist": "playwright test tests/wishlist.spec.ts",
+    "test:visual": "RUN_VISUAL=1 playwright test tests/visual.spec.ts",
+    "test:visual:update": "RUN_VISUAL=1 playwright test tests/visual.spec.ts --update-snapshots",
+    "test:ci": "playwright test --reporter=list,html",
+    "report": "playwright show-report"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "dotenv": "^17.3.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
