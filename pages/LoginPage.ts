@@ -68,14 +68,14 @@ export class LoginPage {
 
     // Wait for the post-login navigation/network activity to settle so the
     // session cookie is fully set before the caller navigates elsewhere.
-    await this.page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => undefined);
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => undefined);
   }
 
   async expectLoggedIn() {
     await expect(this.page).not.toHaveURL(/\/login/i);
     await expect(
       this.page.getByRole('button', { name: /^Log ind$/i }).first()
-    ).toBeHidden({ timeout: 15000 });
+    ).toBeHidden({ timeout: 5000 });
   }
 
   private async acceptCookiesIfVisible() {
@@ -93,7 +93,7 @@ export class LoginPage {
   private async firstVisible(candidates: Locator[], errorMessage: string): Promise<Locator> {
     for (const candidate of candidates) {
       const visible = await candidate
-        .waitFor({ state: 'visible', timeout: 10000 })
+        .waitFor({ state: 'visible', timeout: 5000 })
         .then(() => true)
         .catch(() => false);
       if (visible) {

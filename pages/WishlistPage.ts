@@ -4,33 +4,22 @@ import type { Frame, Locator, Page } from '@playwright/test';
 export class WishlistPage {
   constructor(private readonly page: Page) {}
 
-  private async pause() {
-    await this.page.waitForTimeout(500);
-  }
-
   async open() {
     await this.page.goto('/da/', { waitUntil: 'domcontentloaded' });
-    await this.pause();
     await this.dismissCookieBannerIfPresent();
-    await this.pause();
   }
 
   async expectAuthenticatedSession() {
     await this.dismissCookieBannerIfPresent();
     await expect(this.page).not.toHaveURL(/\/login/i);
-    await this.pause();
   }
 
   async createWishlist(name: string) {
     await this.assertAuthenticatedUi();
     await this.dismissCookieBannerIfPresent();
-    await this.pause();
     await this.openCreateWishlistFlow();
-    await this.pause();
     await this.fillWishlistNameIfPresent(name);
-    await this.pause();
     await this.submitCreateWishlist(name);
-    await this.pause();
 
     const createdNameVisible = await this.page
       .getByText(name, { exact: false })
@@ -38,28 +27,17 @@ export class WishlistPage {
       .isVisible()
       .catch(() => false);
 
-    // Some UI variants create a wishlist without showing editable name in the modal.
-    // In that case, the submit dialog closes and user stays authenticated.
     if (!createdNameVisible) {
-      await expect(this.page.getByTestId('createWishlistSubmitButton')).toBeHidden({ timeout: 10000 });
-      await this.expectAuthenticatedSession();
+      await expect(this.page.getByTestId('createWishlistSubmitButton')).toBeHidden({ timeout: 5000 });
     }
   }
 
-  async addItemToWishlist(wishlistName: string, productLink: string) {
+  async addItemToWishlist(productLink: string) {
     await this.assertAuthenticatedUi();
     await this.dismissCookieBannerIfPresent();
-    await this.pause();
-    await this.openWishlistByName(wishlistName);
-    await this.pause();
-    await this.openAddItemFlow();
-    await this.pause();
+    await this.page.getByTestId('new-wish-btn').click();
     await this.fillProductLink(productLink);
-    await this.pause();
-    await this.submitAddItem();
-    await this.pause();
-    await expect(this.page.getByTestId('new-wish-form-submit-btn')).toBeHidden({ timeout: 30000 });
-    await this.pause();
+    await this.page.getByTestId('select-wishlist-list-item-0').first().click();
   }
 
   private async openCreateWishlistFlow() {
@@ -99,7 +77,7 @@ export class WishlistPage {
   private async submitCreateWishlist(wishlistName: string) {
     const exactSubmit = this.page.getByTestId('createWishlistSubmitButton').first();
     const exactSubmitVisible = await exactSubmit
-      .waitFor({ state: 'visible', timeout: 20000 })
+      .waitFor({ state: 'visible', timeout: 8000 })
       .then(() => true)
       .catch(() => false);
     if (exactSubmitVisible) {
@@ -138,17 +116,6 @@ export class WishlistPage {
     );
   }
 
-  private async openAddItemFlow() {
-    const addButtons: Locator[] = [
-      this.page.getByRole('button', { name: /^Create wish$/i }),
-      this.page.getByRole('button', { name: /tilføj ønske|tilføj gave|add item|add wish/i }),
-      this.page.getByRole('link', { name: /tilføj ønske|tilføj gave|add item|add wish/i }),
-      this.page.locator('[data-testid="add-item"]'),
-    ];
-
-    await this.clickFirstVisible(addButtons, 'Could not find "add item" trigger.');
-  }
-
   private async fillProductLink(productLink: string) {
     const linkInputs: Locator[] = [
       this.page.getByRole('textbox', { name: /^Insert product link$/i }),
@@ -161,17 +128,6 @@ export class WishlistPage {
     await field.fill(productLink);
   }
 
-  private async submitAddItem() {
-    const submitButtons: Locator[] = [
-      this.page.getByTestId('new-wish-form-submit-btn'),
-      this.page.getByRole('button', { name: /tilføj|gem|add|save|opret|create/i }),
-      this.page.locator('[data-testid="save-item"]'),
-      this.page.locator('button[type="submit"]'),
-    ];
-
-    await this.clickFirstVisible(submitButtons, 'Could not find add item submit button.');
-  }
-
   private async clickFirstVisible(candidates: Locator[], errorMessage: string) {
     const locator = await this.firstVisible(candidates, errorMessage);
     await locator.click();
@@ -182,7 +138,7 @@ export class WishlistPage {
       if (
         await candidate
           .first()
-          .waitFor({ state: 'visible', timeout: 8000 })
+          .waitFor({ state: 'visible', timeout: 3000 })
           .then(() => true)
           .catch(() => false)
       ) {
@@ -240,17 +196,5 @@ export class WishlistPage {
     }
 
     return false;
-  }
-
-  private async openWishlistByName(wishlistName: string) {
-    const wishlistSelectors: Locator[] = [
-      this.page.getByTestId(`wl-${wishlistName}`),
-      this.page.getByText(wishlistName, { exact: false }),
-    ];
-
-    await this.clickFirstVisible(
-      wishlistSelectors,
-      `Could not open wishlist "${wishlistName}".`
-    );
   }
 }

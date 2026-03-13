@@ -22,8 +22,6 @@ export async function ensureAuthenticated(page: Page) {
 
   await loginPage.login(email, password);
 
-  // After login the site redirects (e.g. to /overview). Check auth on whatever
-  // page we landed on — no extra navigation needed.
   const hasHeaderLoginButton = await anyVisibleLoginButton(page);
   if (!hasHeaderLoginButton && !/\/login/i.test(page.url())) {
     return;
