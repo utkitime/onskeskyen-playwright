@@ -66,8 +66,6 @@ export class LoginPage {
     );
     await submitButton.click();
 
-    // Wait for the post-login navigation/network activity to settle so the
-    // session cookie is fully set before the caller navigates elsewhere.
     await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => undefined);
   }
 

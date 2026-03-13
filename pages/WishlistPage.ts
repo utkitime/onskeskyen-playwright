@@ -37,7 +37,15 @@ export class WishlistPage {
     await this.dismissCookieBannerIfPresent();
     await this.page.getByTestId('new-wish-btn').click();
     await this.fillProductLink(productLink);
-    await this.page.getByTestId('select-wishlist-list-item-0').first().click();
+    const wishlistItem = this.page.getByTestId('select-wishlist-list-item-0').first();
+    await wishlistItem.waitFor({ state: 'visible', timeout: 10000 });
+    await Promise.all([
+      this.page.waitForResponse(
+        res => res.request().postData()?.includes('"createWish"') ?? false,
+        { timeout: 15000 }
+      ),
+      wishlistItem.getByRole('heading').click(),
+    ]);
   }
 
   private async openCreateWishlistFlow() {
