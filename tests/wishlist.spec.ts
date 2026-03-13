@@ -5,7 +5,6 @@ function uniqueName(prefix: string): string {
 }
 
 test.describe('Ønskeskyen wishlist critical flows', () => {
-  test.describe.configure({ mode: 'serial' });
 
   test('authenticated user can access wishlist area', async ({ authenticatedPage }) => {
     await expect(authenticatedPage).toHaveURL(/onskeskyen\.dk\/overview/i);
